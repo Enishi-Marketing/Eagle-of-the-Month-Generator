@@ -1,0 +1,17 @@
+.DS_Store
+.venv/
+.build/
+build/
+dist/
+.pyinstaller/
+__pycache__/
+*.pyc
+Photos/
+Spreadsheet/
+Output/
+config.json
+credentials.json
+*-*.json
+*.pem
+*.p12
+*.key

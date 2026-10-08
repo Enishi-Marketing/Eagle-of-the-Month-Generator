@@ -1,0 +1,7 @@
+PyMuPDF
+Pillow
+gspread
+google-auth
+rembg
+onnxruntime
+rawpy
