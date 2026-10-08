@@ -13,6 +13,9 @@ FEED="$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$APP/Contents/Info.plist"
 codesign --verify --deep --strict "$APP"
 "${PYTHON_BIN:-.venv/bin/python}" scripts/audit_private_data.py "$APP"
 STAGE="$ROOT/.build/github-release/$VERSION"
+if [[ -d "$STAGE" ]]; then
+    mv "$STAGE" "$STAGE.previous.$(date +%Y%m%d%H%M%S)"
+fi
 mkdir -p "$STAGE"
 ARCHIVE="Eagle.of.the.Month.v${VERSION}.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$STAGE/$ARCHIVE"

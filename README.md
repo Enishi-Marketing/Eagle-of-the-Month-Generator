@@ -1,6 +1,6 @@
 # Eagle of the Month
 
-A native macOS application for previewing, adjusting, exporting, and printing A4 award certificates. Requires macOS 14 or newer on Apple Silicon.
+A native macOS application for previewing, adjusting, exporting, and printing A4 award certificates. Requires macOS 15 or newer on Apple Silicon (the bundled Python framework requires macOS 15).
 
 ## Use the app
 

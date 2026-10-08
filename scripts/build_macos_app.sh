@@ -30,7 +30,7 @@ export PYINSTALLER_CONFIG_DIR="$ROOT/.pyinstaller"
 ditto "$ROOT/dist/EagleBackend" "$APP_PATH/Contents/Resources/backend"
 ditto "$FRAMEWORK" "$APP_PATH/Contents/Frameworks/Sparkle.framework"
 xcrun swiftc -O -parse-as-library SwiftUI/EaglePreviewApp.swift \
-    -target "$(uname -m)-apple-macosx14.0" \
+    -target "$(uname -m)-apple-macosx15.0" \
     -F "$(dirname "$FRAMEWORK")" -framework Sparkle -framework SwiftUI -framework AppKit -framework PDFKit \
     -Xlinker -rpath -Xlinker '@executable_path/../Frameworks' \
     -o "$APP_PATH/Contents/MacOS/EaglePreview"
