@@ -23,7 +23,7 @@ For each release:
 1. Increment `VERSION` and update `RELEASE_NOTES.md`.
 2. Run `scripts/build_macos_app.sh`.
 3. Run `scripts/prepare_github_release.sh` to create the ZIP, checksum, and signed appcast.
-4. Run `scripts/publish_github_release.sh` with authenticated GitHub CLI, or upload those three files to a GitHub Release tagged `v<VERSION>`.
+4. Run `scripts/publish_github_release.sh` with GitHub CLI. The helper uses your CLI login or Git's existing GitHub credential helper without printing or saving credentials. You can also upload those three files to a GitHub Release tagged `v<VERSION>`.
 
 GitHub release asset names contain dots rather than spaces so the signed feed URLs exactly match uploaded names. Do not edit a generated appcast: changes invalidate its signature.
 
