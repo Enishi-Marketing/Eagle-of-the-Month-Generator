@@ -1,5 +1,5 @@
-Eagle of the Month 1.0.0 adds a standalone macOS application with a golden eagle icon, PDF previews, layout and exposure controls, printing, and Sparkle automatic updates.
+## Eagle of the Month 1.0.1
 
-The Python engine is bundled. Photos, spreadsheet data, and Google credentials remain in the selected project folder and are preserved across updates.
+Fixes a preview crash when the app removes the background from a photo for the first time. This affected October and any other month with photos that still needed processing.
 
 Requires macOS 15 or later and Apple Silicon.

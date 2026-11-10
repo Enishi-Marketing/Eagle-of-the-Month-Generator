@@ -1,8 +1,10 @@
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 root = Path(SPECPATH)
 datas = [(str(root / name), name) for name in ('Backgrounds', 'Fonts', 'Logos', 'Top_Layer')]
+# PyMatting reads its distribution version when rembg imports it.
+datas += copy_metadata('pymatting')
 binaries = []
 hiddenimports = ['gsheets', 'gspread', 'google.oauth2.service_account', 'rawpy']
 for package in ('rembg', 'onnxruntime'):
