@@ -8,6 +8,29 @@ Open `dist/Eagle of the Month.app` or copy it to Applications. On first launch c
 
 Your photos, spreadsheet, `config.json`, and service-account credentials stay in that folder. Nothing private is included in the release archive. New photos may require the background-removal model to download on first use.
 
+## Move to another Mac
+
+Transfer both the app and your **private workspace folder** containing `config.json`,
+`credentials.json`, `Spreadsheet`, and `Photos`. Keep this folder out of GitHub and
+release archives. The workspace can have a different name or location on the new Mac.
+On launch, choose that folder if prompted; you can also use **Choose Project Folder…**.
+An app placed beside its workspace can discover that workspace automatically when
+there is no valid remembered folder.
+
+Use **Connect Google Sheet…** to save the sheet URL and optional tab name in the
+workspace. Use **Import Sheet Credentials…** to copy a Google service-account JSON
+key into the workspace as `credentials.json`. Share the sheet with that key's
+`client_email` with Viewer access. Moving the workspace then preserves the connection;
+you do not need to recreate the sheet or change its URL. Internet access and Google
+Sheets API access are still required. The app reports connection errors without
+silently switching to potentially outdated CSV data.
+
+Existing service-account JSON files in the workspace are also discovered automatically.
+The shared `~/.config/gsheets/credentials.json` location remains a fallback for older
+setups, but its key must be transferred or imported when changing computers.
+Photo lookup now defaults to the workspace's `Photos` folder; command-line users
+can choose a separate source with `--photo-source-dir`.
+
 ## Build
 
 Install `requirements.txt` and `requirements-build.txt` in `.venv`, then run `scripts/build_macos_app.sh`. The script fetches Sparkle 2.10.0 if needed; set `SPARKLE_ROOT` to reuse an existing distribution. The existing `.command` launcher opens the packaged application and passes this project folder.

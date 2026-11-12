@@ -42,11 +42,7 @@ BASE_DIR   = Path(os.environ.get("EAGLE_WORKSPACE", Path(__file__).parent))
 ASSET_DIR  = Path(__file__).parent if getattr(sys, "frozen", False) else BASE_DIR
 BG_DIR     = ASSET_DIR / "Backgrounds"
 PHOTO_DIR  = BASE_DIR / "Photos"
-PHOTO_SOURCE_DIR = Path(
-    "/Users/marketing/Library/CloudStorage/GoogleDrive-austin.witt@enishi.ac.jp/"
-    "Shared drives/Enishi - Multimedia/04_Events/2025-26/"
-    "2026.04.22 - Yearbook Photo Day/Named Photos from Photo Booth"
-)
+PHOTO_SOURCE_DIR = BASE_DIR / "Photos"
 LOGOS_DIR  = ASSET_DIR / "Logos"
 TOP_LAYER  = ASSET_DIR / "Top_Layer" / "top.png"
 FONT_PATH  = ASSET_DIR / "Fonts" / "TitanOne-Regular.ttf"
@@ -553,7 +549,7 @@ def load_students(month: str, year: str,
     if resolved_id and resolved_id != "YOUR_GOOGLE_SHEET_URL_HERE":
         from gsheets import read_sheet
         print("  Fetching from Google Sheets...")
-        all_rows = read_sheet(resolved_id, sheet_name=resolved_name)
+        all_rows = read_sheet(resolved_id, sheet_name=resolved_name, workspace=BASE_DIR)
     else:
         with open(CSV_FILE, newline="", encoding="utf-8") as f:
             all_rows = list(csv.DictReader(f))

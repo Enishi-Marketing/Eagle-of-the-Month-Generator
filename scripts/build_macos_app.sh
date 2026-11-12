@@ -4,6 +4,12 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 PYTHON_BIN="${PYTHON_BIN:-$ROOT/.venv/bin/python}"
 SPARKLE_ROOT="${SPARKLE_ROOT:-$ROOT/.build/Sparkle}"
+if [[ ! -x "$PYTHON_BIN" ]]; then
+    echo "Build Python not found: $PYTHON_BIN" >&2
+    echo 'Create .venv and install requirements.txt and requirements-build.txt first.' >&2
+    exit 1
+fi
+"$PYTHON_BIN" -c 'import PyInstaller, fitz, PIL, gspread, google.auth, rembg, onnxruntime, rawpy'
 VERSION="$(tr -d '[:space:]' < VERSION)"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid VERSION'; exit 1; }
 RELEASE_REPOSITORY="${RELEASE_REPOSITORY:-}"
@@ -11,13 +17,16 @@ if [[ -z "$RELEASE_REPOSITORY" && -f RELEASE_REPOSITORY ]]; then
     RELEASE_REPOSITORY="$(tr -d '[:space:]' < RELEASE_REPOSITORY)"
 fi
 [[ -z "$RELEASE_REPOSITORY" || "$RELEASE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
-if [[ ! -d "$SPARKLE_ROOT/Sparkle.xcframework" ]]; then
+if [[ ! -d "$SPARKLE_ROOT/Sparkle.xcframework" && ! -d "$SPARKLE_ROOT/Sparkle.framework" ]]; then
     echo 'Fetching Sparkle 2.10.0…'
     mkdir -p "$SPARKLE_ROOT"
     curl --fail --location --retry 3 https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz -o "$ROOT/.build/Sparkle-2.10.0.tar.xz"
     tar -xf "$ROOT/.build/Sparkle-2.10.0.tar.xz" -C "$SPARKLE_ROOT"
 fi
-FRAMEWORK="$SPARKLE_ROOT/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+FRAMEWORK="$SPARKLE_ROOT/Sparkle.framework"
+if [[ ! -d "$FRAMEWORK" ]]; then
+    FRAMEWORK="$SPARKLE_ROOT/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+fi
 APP_PATH="$ROOT/dist/Eagle of the Month.app"
 if [[ -d "$APP_PATH" ]]; then
     mv "$APP_PATH" "$ROOT/dist/Eagle of the Month.previous.$(date +%Y%m%d%H%M%S).app"

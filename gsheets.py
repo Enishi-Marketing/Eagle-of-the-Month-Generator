@@ -43,33 +43,28 @@ from pathlib import Path
 
 import json as _json
 
-# Named locations checked first; if not found, any service-account JSON in cwd is used.
-_NAMED_PATHS = [
-    Path.cwd() / "credentials.json",
-    Path.home() / ".config" / "gsheets" / "credentials.json",
-]
+def _find_credentials(workspace=None) -> Path:
+    """Resolve credentials at call time, independently of the launch directory."""
+    import os
 
-
-def _find_credentials() -> Path:
-    # 1. Check well-known named paths
-    for p in _NAMED_PATHS:
-        if p.exists():
-            return p
-
-    # 2. Scan cwd for any JSON that looks like a service account key
-    for p in sorted(Path.cwd().glob("*.json")):
+    root = Path(workspace or os.environ.get("EAGLE_WORKSPACE") or Path.cwd()).expanduser()
+    candidates = [root / "credentials.json"]
+    # Prefer portable workspace credentials over this machine's shared key.
+    candidates.extend(sorted(root.glob("*.json")))
+    candidates.append(Path.home() / ".config" / "gsheets" / "credentials.json")
+    for path in candidates:
         try:
-            data = _json.loads(p.read_text())
-            if data.get("type") == "service_account":
-                return p
-        except Exception:
+            data = _json.loads(path.read_text())
+            if isinstance(data, dict) and data.get("type") == "service_account":
+                return path
+        except (OSError, ValueError):
             continue
 
     raise FileNotFoundError(
-        "Google Sheets credentials not found.\n"
-        "Place your service-account JSON in the project folder "
-        "or at ~/.config/gsheets/credentials.json.\n"
-        "See the setup instructions at the top of gsheets.py."
+        "Google Sheets credentials not found in the selected workspace.\n"
+        "Use Import Sheet Credentials… in the app to select your service-account JSON, "
+        "or copy it into the workspace as credentials.json.\n"
+        "When moving computers, transfer the private workspace folder as well as the app."
     )
 
 
@@ -84,6 +79,7 @@ def read_sheet(
     spreadsheet_id: str,
     sheet_name: str = None,
     sheet_index: int = 0,
+    workspace=None,
 ) -> list:
     """Read a Google Sheet tab and return rows as a list of dicts.
 
@@ -104,7 +100,7 @@ def read_sheet(
         raise ImportError("Run:  pip3 install gspread google-auth")
 
     creds = Credentials.from_service_account_file(
-        str(_find_credentials()),
+        str(_find_credentials(workspace)),
         scopes=[
             "https://www.googleapis.com/auth/spreadsheets.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
@@ -116,6 +112,12 @@ def read_sheet(
     try:
         # Works with a bare ID or full URL
         workbook = client.open_by_key(sheet_id)
+    except PermissionError as exc:
+        raise RuntimeError(
+            "Google Sheets access denied. Share the sheet with the client_email "
+            "in the workspace credentials.json (Viewer access is sufficient), "
+            "or import the correct credentials using Import Sheet Credentials…."
+        ) from exc
     except Exception:
         try:
             # Fall back to opening by title (requires Drive API enabled in Cloud Console)
@@ -125,6 +127,8 @@ def read_sheet(
                 f"Could not open spreadsheet: {spreadsheet_id!r}\n\n"
                 "Use the full URL or the ID from the URL:\n"
                 "  https://docs.google.com/spreadsheets/d/<ID>/edit\n\n"
+                "Check the URL using Connect Google Sheet… and share the sheet "
+                "with the client_email in your service-account JSON.\n"
                 "If using a title, make sure the Google Drive API is enabled\n"
                 "in your Cloud Console project."
             )
@@ -137,7 +141,7 @@ def read_sheet(
     return worksheet.get_all_records()
 
 
-def list_sheets(spreadsheet_id: str) -> list:
+def list_sheets(spreadsheet_id: str, workspace=None) -> list:
     """Return the tab names in a workbook — handy for debugging."""
     try:
         import gspread
@@ -146,7 +150,7 @@ def list_sheets(spreadsheet_id: str) -> list:
         raise ImportError("Run:  pip3 install gspread google-auth")
 
     creds = Credentials.from_service_account_file(
-        str(_find_credentials()),
+        str(_find_credentials(workspace)),
         scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
     )
     client   = gspread.authorize(creds)

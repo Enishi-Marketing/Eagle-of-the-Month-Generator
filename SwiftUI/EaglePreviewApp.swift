@@ -51,6 +51,82 @@ final class PreviewModel: ObservableObject {
         loadLatestLocalPeriod()
     }
 
+    static func isWorkspace(_ url: URL) -> Bool {
+        let manager = FileManager.default
+        return manager.fileExists(atPath: url.appendingPathComponent("Spreadsheet").path)
+            || manager.fileExists(atPath: url.appendingPathComponent("config.json").path)
+    }
+
+    func connectSheet() {
+        let configURL = projectRoot.appendingPathComponent("config.json")
+        do {
+            var config: [String: Any] = [:]
+            if FileManager.default.fileExists(atPath: configURL.path) {
+                let data = try Data(contentsOf: configURL)
+                guard let saved = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    throw NSError(domain: "Eagle", code: 1, userInfo: [NSLocalizedDescriptionKey: "config.json must contain a JSON object."])
+                }
+                config = saved
+            }
+            let alert = NSAlert()
+            alert.messageText = "Connect Google Sheet"
+            alert.informativeText = "Paste the sheet URL or ID and, optionally, a tab name. Settings stay in this private workspace so they travel with it."
+            let urlField = NSTextField(string: config["sheet_url"] as? String ?? "")
+            urlField.placeholderString = "Google Sheets URL or ID"
+            let tabField = NSTextField(string: config["sheet_name"] as? String ?? "")
+            tabField.placeholderString = "Tab name (blank uses the first tab)"
+            let stack = NSStackView(views: [urlField, tabField])
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 8
+            stack.frame = NSRect(x: 0, y: 0, width: 420, height: 60)
+            urlField.widthAnchor.constraint(equalToConstant: 420).isActive = true
+            tabField.widthAnchor.constraint(equalToConstant: 420).isActive = true
+            alert.accessoryView = stack
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            let value = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let pattern = "^(https://docs\\.google\\.com/spreadsheets/d/[A-Za-z0-9_-]+(?:[/?#].*)?|[A-Za-z0-9_-]+)$"
+            guard value.range(of: pattern, options: .regularExpression) != nil else {
+                errorText = "Enter a Google Sheets URL or spreadsheet ID."
+                return
+            }
+            config["sheet_url"] = value
+            config["sheet_name"] = tabField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let data = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: configURL, options: .atomic)
+            useLocalCSV = false
+            scheduleRefresh()
+        } catch {
+            errorText = "Could not save sheet settings: \(error.localizedDescription)"
+        }
+    }
+
+    func importCredentials() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Google service-account credentials JSON"
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            guard let key = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  key["type"] as? String == "service_account",
+                  key["client_email"] as? String != nil,
+                  key["private_key"] as? String != nil else {
+                errorText = "Select a Google service-account key JSON file."
+                return
+            }
+            let destination = projectRoot.appendingPathComponent("credentials.json")
+            try data.write(to: destination, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+            scheduleRefresh()
+        } catch {
+            errorText = "Could not import credentials: \(error.localizedDescription)"
+        }
+    }
+
     func chooseWorkspace() {
         let panel = NSOpenPanel()
         panel.title = "Choose your Eagle of the Month project folder"
@@ -58,8 +134,8 @@ final class PreviewModel: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard FileManager.default.fileExists(atPath: url.appendingPathComponent("Spreadsheet").path) else {
-            errorText = "Choose the project folder containing Spreadsheet and Photos."
+        guard Self.isWorkspace(url) else {
+            errorText = "Choose the private workspace folder containing Spreadsheet or config.json."
             return
         }
         projectRoot = url
@@ -303,6 +379,8 @@ struct ContentView: View {
                 Section("Sheets") {
                     Button("Choose Project Folder…") { model.chooseWorkspace() }
                     Text(model.projectRoot.lastPathComponent).font(.caption).foregroundStyle(.secondary)
+                    Button("Connect Google Sheet…") { model.connectSheet() }
+                    Button("Import Sheet Credentials…") { model.importCredentials() }
                     TextField("Month", text: $model.month)
                     TextField("Year", text: $model.year)
                     Toggle("Use local CSV", isOn: $model.useLocalCSV)
@@ -390,7 +468,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 1000, minHeight: 700)
         .task {
-            if !FileManager.default.fileExists(atPath: model.projectRoot.path) {
+            if !PreviewModel.isWorkspace(model.projectRoot) {
                 model.chooseWorkspace()
             } else {
                 await model.refresh()
@@ -445,8 +523,11 @@ struct EaglePreviewApp: App {
         if let marker = arguments.firstIndex(of: "--project-root"), arguments.indices.contains(marker + 1) {
             root = URL(fileURLWithPath: arguments[marker + 1], isDirectory: true)
             UserDefaults.standard.set(root.path, forKey: "workspacePath")
-        } else if let path = UserDefaults.standard.string(forKey: "workspacePath") {
+        } else if let path = UserDefaults.standard.string(forKey: "workspacePath"),
+                  PreviewModel.isWorkspace(URL(fileURLWithPath: path, isDirectory: true)) {
             root = URL(fileURLWithPath: path, isDirectory: true)
+        } else if PreviewModel.isWorkspace(Bundle.main.bundleURL.deletingLastPathComponent()) {
+            root = Bundle.main.bundleURL.deletingLastPathComponent()
         } else {
             root = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Documents/Eagle of the Month")
