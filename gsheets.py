@@ -42,6 +42,7 @@ Dependencies:
 from pathlib import Path
 
 import json as _json
+import re as _re
 
 def _find_credentials(workspace=None) -> Path:
     """Resolve credentials at call time, independently of the launch directory."""
@@ -70,9 +71,9 @@ def _find_credentials(workspace=None) -> Path:
 
 def _parse_sheet_id(id_or_url: str) -> str:
     """Accept either a bare sheet ID or a full Google Sheets URL."""
-    if "spreadsheets/d/" in id_or_url:
-        return id_or_url.split("spreadsheets/d/")[1].split("/")[0]
-    return id_or_url.strip()
+    value = id_or_url.strip()
+    match = _re.search(r"/spreadsheets/(?:u/\d+/)?d/([^/?#]+)", value)
+    return match.group(1) if match else value
 
 
 def read_sheet(

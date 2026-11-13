@@ -4,7 +4,7 @@ A native macOS application for previewing, adjusting, exporting, and printing A4
 
 ## Use the app
 
-Open `dist/Eagle of the Month.app` or copy it to Applications. On first launch choose the existing Eagle project folder containing `Photos` and `Spreadsheet`. The application remembers that folder. The Python engine, house backgrounds, fonts, logos, and banner are bundled; Terminal and Python are not needed to use a packaged app.
+Open `dist/Eagle of the Month.app` or copy it to Applications. On first launch the app prepares a private workspace at `~/Documents/Eagle of the Month`. Use **Choose Project Folder…** to select an existing workspace or a new folder. The application remembers that folder. The Python engine, house backgrounds, fonts, logos, and banner are bundled; Terminal and Python are not needed to use a packaged app.
 
 Your photos, spreadsheet, `config.json`, and service-account credentials stay in that folder. Nothing private is included in the release archive. New photos may require the background-removal model to download on first use.
 
@@ -13,7 +13,7 @@ Your photos, spreadsheet, `config.json`, and service-account credentials stay in
 Transfer both the app and your **private workspace folder** containing `config.json`,
 `credentials.json`, `Spreadsheet`, and `Photos`. Keep this folder out of GitHub and
 release archives. The workspace can have a different name or location on the new Mac.
-On launch, choose that folder if prompted; you can also use **Choose Project Folder…**.
+Use **Choose Project Folder…** to select the transferred workspace on the new Mac.
 An app placed beside its workspace can discover that workspace automatically when
 there is no valid remembered folder.
 
@@ -28,8 +28,12 @@ silently switching to potentially outdated CSV data.
 Existing service-account JSON files in the workspace are also discovered automatically.
 The shared `~/.config/gsheets/credentials.json` location remains a fallback for older
 setups, but its key must be transferred or imported when changing computers.
-Photo lookup now defaults to the workspace's `Photos` folder; command-line users
-can choose a separate source with `--photo-source-dir`.
+Photo lookup defaults to the workspace's `Photos` folder. Use **Choose Photo Folder…**
+to connect another folder, including a synced Google Drive folder. The selected path
+stays in private `config.json`; folders inside the workspace use relative paths and
+follow the workspace when moved. For external folders, choose the folder again if its
+location changes on another Mac. If the folder becomes unavailable, the app asks you
+to reconnect it. Command-line users can override it with `--photo-source-dir`.
 
 ## Build
 

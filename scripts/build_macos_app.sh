@@ -38,7 +38,7 @@ export PYINSTALLER_CONFIG_DIR="$ROOT/.pyinstaller"
 "$PYTHON_BIN" -m PyInstaller EagleBackend.spec --noconfirm --clean --workpath .build/pyinstaller
 ditto "$ROOT/dist/EagleBackend" "$APP_PATH/Contents/Resources/backend"
 ditto "$FRAMEWORK" "$APP_PATH/Contents/Frameworks/Sparkle.framework"
-xcrun swiftc -O -parse-as-library SwiftUI/EaglePreviewApp.swift \
+xcrun swiftc -O -parse-as-library SwiftUI/EaglePreviewApp.swift SwiftUI/WorkspaceSettings.swift \
     -target "$(uname -m)-apple-macosx15.0" \
     -F "$(dirname "$FRAMEWORK")" -framework Sparkle -framework SwiftUI -framework AppKit -framework PDFKit \
     -Xlinker -rpath -Xlinker '@executable_path/../Frameworks' \

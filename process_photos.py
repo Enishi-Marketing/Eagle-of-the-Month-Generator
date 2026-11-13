@@ -48,7 +48,7 @@ def main():
         return
 
     print(f"Found {len(photos)} photo(s). Loading model...")
-    session = new_session()  # load once, reuse for all photos
+    session = new_session("u2net")  # keep model choice stable across dependency updates
 
     for photo in photos:
         process(photo, session, force=args.force)

@@ -25,6 +25,7 @@ import re
 import subprocess
 import json
 from pathlib import Path
+from workspace_paths import photo_source_path
 
 # If an editor terminal runs the system Python, restart inside this project's
 # virtual environment before importing project dependencies.
@@ -135,7 +136,7 @@ def rembg_session():
     if _rembg_session is None:
         from rembg import new_session
         print("  Loading background-removal model (first run only)...")
-        _rembg_session = new_session()
+        _rembg_session = new_session("u2net")
     return _rembg_session
 
 
@@ -173,8 +174,8 @@ def student_last_name(student: dict) -> str:
 def _photo_files() -> list:
     dirs = [PHOTO_SOURCE_DIR, PHOTO_DIR]
     files = []
-    for directory in dirs:
-        if not directory.exists():
+    for directory in dict.fromkeys(dirs):
+        if not directory.is_dir():
             continue
         files.extend(
             p for p in directory.iterdir()
@@ -602,8 +603,8 @@ def main():
                    help="Tab name in the workbook (default: first tab)")
     p.add_argument("--local-csv", action="store_true",
                    help="Read Spreadsheet/Eagle of the Month.csv instead of Google Sheets")
-    p.add_argument("--photo-source-dir", default=str(PHOTO_SOURCE_DIR),
-                   help="Folder containing named student photos")
+    p.add_argument("--photo-source-dir", default=None,
+                   help="Folder containing named student photos (overrides workspace settings)")
     p.add_argument("--output",     default=None,
                    help="Output PDF (default: Output/eagle_<Month>_<Year>.pdf)")
     p.add_argument("--layout-json", default=None,
@@ -612,13 +613,18 @@ def main():
                    help="Never prompt for photo choices (used by the preview app)")
     args = p.parse_args()
 
-    PHOTO_SOURCE_DIR = Path(args.photo_source_dir).expanduser()
+    config = _load_config()
+    PHOTO_SOURCE_DIR = photo_source_path(BASE_DIR, args.photo_source_dir or config.get("photo_source_dir"))
     NON_INTERACTIVE = args.non_interactive
 
     try:
-        layout = normalized_layout(json.loads(args.layout_json)) if args.layout_json else None
+        layout = normalized_layout(json.loads(args.layout_json) if args.layout_json else None)
     except json.JSONDecodeError as exc:
         p.error(f"--layout-json is not valid JSON: {exc}")
+
+    if layout["show_photos"] and not PHOTO_SOURCE_DIR.is_dir():
+        p.error("Photo folder unavailable. Use Choose Photo Folder… in the app "
+                "to reconnect your source photos, or turn Show photos off.")
 
     out_path = (
         Path(args.output) if args.output

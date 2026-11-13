@@ -41,6 +41,8 @@ final class PreviewModel: ObservableObject {
     @Published var isGenerating = false
     @Published var statusText = "Preparing preview…"
     @Published var errorText: String?
+    @Published var connectionStatus: String?
+    @Published var photoFolderStatus = ""
 
     private var refreshTask: Task<Void, Never>?
     private var generationID = UUID()
@@ -49,6 +51,36 @@ final class PreviewModel: ObservableObject {
     init(projectRoot: URL) {
         self.projectRoot = projectRoot
         loadLatestLocalPeriod()
+        updatePhotoFolderStatus()
+    }
+
+    private func updatePhotoFolderStatus() {
+        do {
+            let source = try WorkspaceSettings.photoSource(in: projectRoot)
+            photoFolderStatus = FileManager.default.fileExists(atPath: source.path)
+                ? source.path : "Photo folder unavailable. Choose the folder again."
+        } catch {
+            photoFolderStatus = "Could not read photo folder settings."
+        }
+    }
+
+    func choosePhotoFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose the folder containing named student photos"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try WorkspaceSettings.savePhotoFolder(url, in: projectRoot)
+            UserDefaults.standard.set(projectRoot.path, forKey: "workspacePath")
+            updatePhotoFolderStatus()
+            errorText = nil
+            connectionStatus = "Photo folder saved."
+            scheduleRefresh()
+        } catch {
+            reportSetupError("Could not connect photo folder: \(error.localizedDescription)")
+        }
     }
 
     static func isWorkspace(_ url: URL) -> Bool {
@@ -58,16 +90,8 @@ final class PreviewModel: ObservableObject {
     }
 
     func connectSheet() {
-        let configURL = projectRoot.appendingPathComponent("config.json")
         do {
-            var config: [String: Any] = [:]
-            if FileManager.default.fileExists(atPath: configURL.path) {
-                let data = try Data(contentsOf: configURL)
-                guard let saved = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    throw NSError(domain: "Eagle", code: 1, userInfo: [NSLocalizedDescriptionKey: "config.json must contain a JSON object."])
-                }
-                config = saved
-            }
+            let config = try WorkspaceSettings.load(from: projectRoot)
             let alert = NSAlert()
             alert.messageText = "Connect Google Sheet"
             alert.informativeText = "Paste the sheet URL or ID and, optionally, a tab name. Settings stay in this private workspace so they travel with it."
@@ -86,20 +110,43 @@ final class PreviewModel: ObservableObject {
             alert.addButton(withTitle: "Save")
             alert.addButton(withTitle: "Cancel")
             guard alert.runModal() == .alertFirstButtonReturn else { return }
-            let value = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let pattern = "^(https://docs\\.google\\.com/spreadsheets/d/[A-Za-z0-9_-]+(?:[/?#].*)?|[A-Za-z0-9_-]+)$"
-            guard value.range(of: pattern, options: .regularExpression) != nil else {
-                errorText = "Enter a Google Sheets URL or spreadsheet ID."
-                return
-            }
-            config["sheet_url"] = value
-            config["sheet_name"] = tabField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let data = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys])
-            try data.write(to: configURL, options: .atomic)
+            try WorkspaceSettings.saveSheet(urlField.stringValue, tab: tabField.stringValue, in: projectRoot)
+            UserDefaults.standard.set(projectRoot.path, forKey: "workspacePath")
+            errorText = nil
+            connectionStatus = "Sheet settings saved in this workspace."
             useLocalCSV = false
             scheduleRefresh()
         } catch {
-            errorText = "Could not save sheet settings: \(error.localizedDescription)"
+            reportSetupError("Could not save sheet settings: \(error.localizedDescription)")
+        }
+    }
+
+    private func reportSetupError(_ message: String) {
+        errorText = message
+        connectionStatus = message
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Setup needs attention"
+        alert.informativeText = message
+        alert.runModal()
+    }
+
+    func prepareForLaunch() async {
+        do {
+            try WorkspaceSettings.prepare(projectRoot)
+            updatePhotoFolderStatus()
+            UserDefaults.standard.set(projectRoot.path, forKey: "workspacePath")
+            let config = try WorkspaceSettings.load(from: projectRoot)
+            let hasSheet = !(config["sheet_url"] as? String ?? "").isEmpty
+            let hasCSV = FileManager.default.fileExists(atPath: projectRoot.appendingPathComponent("Spreadsheet/Eagle of the Month.csv").path)
+            if hasSheet || hasCSV {
+                await refresh()
+            } else {
+                statusText = "Connect a Google Sheet to get started."
+                connectionStatus = "Workspace ready. Connect your sheet and import its credentials."
+            }
+        } catch {
+            reportSetupError("Could not prepare workspace: \(error.localizedDescription)")
         }
     }
 
@@ -115,15 +162,19 @@ final class PreviewModel: ObservableObject {
                   key["type"] as? String == "service_account",
                   key["client_email"] as? String != nil,
                   key["private_key"] as? String != nil else {
-                errorText = "Select a Google service-account key JSON file."
+                reportSetupError("Select a Google service-account key JSON file.")
                 return
             }
+            try WorkspaceSettings.prepare(projectRoot)
             let destination = projectRoot.appendingPathComponent("credentials.json")
             try data.write(to: destination, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+            UserDefaults.standard.set(projectRoot.path, forKey: "workspacePath")
+            errorText = nil
+            connectionStatus = "Credentials imported into this workspace."
             scheduleRefresh()
         } catch {
-            errorText = "Could not import credentials: \(error.localizedDescription)"
+            reportSetupError("Could not import credentials: \(error.localizedDescription)")
         }
     }
 
@@ -132,16 +183,20 @@ final class PreviewModel: ObservableObject {
         panel.title = "Choose your Eagle of the Month project folder"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard Self.isWorkspace(url) else {
-            errorText = "Choose the private workspace folder containing Spreadsheet or config.json."
+        do {
+            try WorkspaceSettings.prepare(url)
+        } catch {
+            reportSetupError("Could not prepare workspace: \(error.localizedDescription)")
             return
         }
         projectRoot = url
         UserDefaults.standard.set(url.path, forKey: "workspacePath")
         loadLatestLocalPeriod()
-        scheduleRefresh()
+        connectionStatus = "Workspace selected."
+        Task { await prepareForLaunch() }
     }
 
     deinit {
@@ -378,9 +433,15 @@ struct ContentView: View {
             Form {
                 Section("Sheets") {
                     Button("Choose Project Folder…") { model.chooseWorkspace() }
-                    Text(model.projectRoot.lastPathComponent).font(.caption).foregroundStyle(.secondary)
+                    Text(model.projectRoot.path)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
                     Button("Connect Google Sheet…") { model.connectSheet() }
                     Button("Import Sheet Credentials…") { model.importCredentials() }
+                    if let status = model.connectionStatus {
+                        Text(status).font(.caption).foregroundStyle(.secondary)
+                    }
                     TextField("Month", text: $model.month)
                     TextField("Year", text: $model.year)
                     Toggle("Use local CSV", isOn: $model.useLocalCSV)
@@ -388,6 +449,11 @@ struct ContentView: View {
                 }
 
                 Section("Student photo") {
+                    Button("Choose Photo Folder…") { model.choosePhotoFolder() }
+                    Text(model.photoFolderStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
                     Toggle("Show photos", isOn: $model.showPhotos)
                     LabeledSlider(title: "Size", value: $model.studentScale, range: 0.5...1.4) {
                         "\(Int($0 * 100))%"
@@ -468,11 +534,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 1000, minHeight: 700)
         .task {
-            if !PreviewModel.isWorkspace(model.projectRoot) {
-                model.chooseWorkspace()
-            } else {
-                await model.refresh()
-            }
+            await model.prepareForLaunch()
         }
     }
 }

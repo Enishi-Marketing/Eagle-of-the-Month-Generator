@@ -48,6 +48,9 @@ class PortableSheetsTests(unittest.TestCase):
             with patch('pathlib.Path.home', return_value=root):
                 self.assertEqual(_find_credentials(root / 'workspace'), key)
 
+    def test_account_specific_sheet_url_and_query(self):
+        self.assertEqual(_parse_sheet_id(' https://docs.google.com/spreadsheets/u/0/d/example_ID?usp=sharing '), 'example_ID')
+
     def test_url_retains_sheet_id_after_transfer(self):
         self.assertEqual(_parse_sheet_id('https://docs.google.com/spreadsheets/d/example_ID/edit#gid=123'), 'example_ID')
 
