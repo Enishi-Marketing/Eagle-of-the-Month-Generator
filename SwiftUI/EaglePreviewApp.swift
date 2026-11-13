@@ -515,7 +515,13 @@ struct ContentView: View {
             .navigationTitle("Eagle of the Month")
             .toolbar {
                 ToolbarItemGroup {
-                    Text(model.statusText).foregroundStyle(.secondary)
+                    Text(model.statusText)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: 240)
+                        .padding(.horizontal, 10)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .help(model.statusText)
                     Button { Task { await model.refresh() } } label: {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
